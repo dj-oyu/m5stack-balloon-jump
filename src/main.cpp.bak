@@ -1,0 +1,21 @@
+#include <M5Unified.h>
+
+uint32_t count;
+
+void setup() {
+  auto cfg = M5.config();
+  M5.begin(cfg);
+
+  M5.Display.setTextSize(10);
+  M5.Display.print("Hello World");
+  Serial.println("Hello World");
+  count = 0;
+}
+
+void loop() {
+  M5.Display.setCursor(100, 200);
+  M5.Display.printf("COUNT: %d\n", count);
+  Serial.printf("COUNT: %d\n", count);
+  count++;
+  delay(1000);
+}
