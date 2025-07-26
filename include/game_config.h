@@ -37,4 +37,10 @@
 #define WAVE_COLOR TFT_WHITE
 #define WAVE_SHIFT 6
 
+// Level design settings
+#define LEVEL_HEIGHT_STEP 300
+#define MAX_LEVEL 5
+#define BASE_OBSTACLE_INTERVAL 1500
+#define MIN_OBSTACLE_INTERVAL 600
+
 #endif

@@ -8,6 +8,7 @@ struct Obstacle {
   int width;
   int height;
   bool active;
+  int vy;
 };
 
 GameState gameState;
@@ -25,11 +26,16 @@ void initGame() {
   gameState.burstTime = 0;
   gameState.prevBalloonY = gameState.balloonY;
   gameState.prevUIY = 0;
+  gameState.level = 1;
+  gameState.nextLevelHeight = LEVEL_HEIGHT_STEP;
+  gameState.showLevelUp = false;
+  gameState.levelUpTime = 0;
   
   memset(gameState.micData, 0, sizeof(gameState.micData));
   
   for (int i = 0; i < 5; i++) {
     obstacles[i].active = false;
+    obstacles[i].vy = 0;
     gameState.prevObstaclesX[i] = 0;
     gameState.prevObstaclesY[i] = 0;
     gameState.prevObstaclesActive[i] = false;
@@ -107,14 +113,24 @@ void updateBalloon() {
   if (gameState.balloonVelocity < 0) {
     gameState.height -= gameState.balloonVelocity;
   }
+
+  if (gameState.height >= gameState.nextLevelHeight &&
+      gameState.level < MAX_LEVEL) {
+    gameState.level++;
+    gameState.nextLevelHeight += LEVEL_HEIGHT_STEP;
+    gameState.showLevelUp = true;
+    gameState.levelUpTime = millis();
+  }
 }
 
 void updateObstacles() {
   if (gameState.isBurst) return;
   
   unsigned long currentTime = millis();
-  
-  if (currentTime - gameState.lastObstacleTime > 1500) {
+  unsigned long interval = BASE_OBSTACLE_INTERVAL - (gameState.level - 1) * 150;
+  if (interval < MIN_OBSTACLE_INTERVAL) interval = MIN_OBSTACLE_INTERVAL;
+
+  if (currentTime - gameState.lastObstacleTime > interval) {
     for (int i = 0; i < 5; i++) {
       if (!obstacles[i].active) {
         obstacles[i].active = true;
@@ -122,6 +138,12 @@ void updateObstacles() {
         obstacles[i].y = random(GROUND_HEIGHT + 30, SCREEN_HEIGHT - GROUND_HEIGHT - OBSTACLE_HEIGHT - 30);
         obstacles[i].width = OBSTACLE_WIDTH;
         obstacles[i].height = OBSTACLE_HEIGHT;
+        if (gameState.level >= 2) {
+          obstacles[i].vy = random(-gameState.level, gameState.level + 1);
+          if (obstacles[i].vy == 0) obstacles[i].vy = 1;
+        } else {
+          obstacles[i].vy = 0;
+        }
         gameState.lastObstacleTime = currentTime;
         break;
       }
@@ -130,10 +152,17 @@ void updateObstacles() {
   
   for (int i = 0; i < 5; i++) {
     if (obstacles[i].active) {
-      obstacles[i].x -= GAME_SPEED;
-      
+      obstacles[i].x -= GAME_SPEED + (gameState.level - 1) * 2;
+      obstacles[i].y += obstacles[i].vy;
+
+      if (obstacles[i].y < WAVE_POS_Y + 10 ||
+          obstacles[i].y > SCREEN_HEIGHT - GROUND_HEIGHT - OBSTACLE_HEIGHT - 10) {
+        obstacles[i].vy = -obstacles[i].vy;
+      }
+
       if (obstacles[i].x < -OBSTACLE_WIDTH) {
         obstacles[i].active = false;
+        obstacles[i].vy = 0;
         gameState.score += 10;
       }
     }
@@ -235,6 +264,18 @@ void drawUI() {
   
   M5.Display.setCursor(15, 35);
   M5.Display.printf("Score: %d", gameState.score);
+
+  M5.Display.setCursor(SCREEN_WIDTH - 80, 35);
+  M5.Display.printf("Lv:%d", gameState.level);
+
+  if (gameState.showLevelUp) {
+    if (millis() - gameState.levelUpTime < 1000) {
+      M5.Display.setCursor(SCREEN_WIDTH/2, 10);
+      M5.Display.printf("LEVEL %d!", gameState.level);
+    } else {
+      gameState.showLevelUp = false;
+    }
+  }
   
   if (gameState.isBlowing) {
     M5.Display.setCursor(SCREEN_WIDTH - 100, 10);
@@ -292,6 +333,9 @@ void gameOver() {
   M5.Display.printf("Height: %dm", gameState.height);
   M5.Display.setCursor(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 10);
   M5.Display.printf("Score: %d", gameState.score);
+
+  M5.Display.setCursor(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 25);
+  M5.Display.printf("Level: %d", gameState.level);
   
   M5.Display.setTextSize(UI_FONT_SIZE);
   M5.Display.setCursor(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 40);
