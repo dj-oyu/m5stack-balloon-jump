@@ -21,6 +21,10 @@ struct GameState {
   bool prevObstaclesActive[5];
   int16_t prevWaveY[RECORD_LENGTH];
   int16_t prevWaveH[RECORD_LENGTH];
+  int level;
+  int nextLevelHeight;
+  bool showLevelUp;
+  unsigned long levelUpTime;
 };
 
 extern GameState gameState;
