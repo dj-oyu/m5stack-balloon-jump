@@ -120,6 +120,15 @@ void updateBalloon() {
     gameState.nextLevelHeight += LEVEL_HEIGHT_STEP;
     gameState.showLevelUp = true;
     gameState.levelUpTime = millis();
+    M5.Mic.end();
+    M5.Speaker.begin();
+    M5.Speaker.setVolume(200);
+    M5.Speaker.tone(880, 200);
+    while(M5.Speaker.isPlaying()) {
+      delay(5);
+    }
+    M5.Speaker.end();
+    M5.Mic.begin();
   }
 }
 
@@ -269,9 +278,13 @@ void drawUI() {
   M5.Display.printf("Lv:%d", gameState.level);
 
   if (gameState.showLevelUp) {
-    if (millis() - gameState.levelUpTime < 1000) {
+    if (millis() - gameState.levelUpTime < LEVEL_UP_DURATION) {
+      M5.Display.setTextSize(LEVEL_UP_FONT_SIZE);
+      M5.Display.setTextColor(LEVEL_UP_COLOR);
       M5.Display.setCursor(SCREEN_WIDTH/2, 10);
       M5.Display.printf("LEVEL %d!", gameState.level);
+      M5.Display.setTextSize(UI_FONT_SIZE);
+      M5.Display.setTextColor(TEXT_COLOR);
     } else {
       gameState.showLevelUp = false;
     }
