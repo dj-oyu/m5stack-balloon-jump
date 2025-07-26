@@ -31,4 +31,10 @@
 #define BLOW_DURATION 500
 #define RECORD_SAMPLERATE 17000
 
+// Waveform display settings
+#define WAVE_POS_Y 60
+#define WAVE_HEIGHT 50
+#define WAVE_COLOR TFT_WHITE
+#define WAVE_SHIFT 6
+
 #endif

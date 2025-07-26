@@ -34,10 +34,14 @@ void initGame() {
     gameState.prevObstaclesY[i] = 0;
     gameState.prevObstaclesActive[i] = false;
   }
+
+  memset(gameState.prevWaveY, 0, sizeof(gameState.prevWaveY));
+  memset(gameState.prevWaveH, 0, sizeof(gameState.prevWaveH));
   
   M5.Display.setRotation(0);
   M5.Display.setTextDatum(middle_center);
   M5.Display.setTextColor(TEXT_COLOR);
+  M5.Display.startWrite();
   
   M5.Speaker.end();
   M5.Mic.begin();
@@ -238,12 +242,36 @@ void drawUI() {
   }
 }
 
+void drawWaveform() {
+  int32_t w = SCREEN_WIDTH;
+  if (w > RECORD_LENGTH - 1) {
+    w = RECORD_LENGTH - 1;
+  }
+
+  for (int32_t x = 0; x < w; ++x) {
+    M5.Display.writeFastVLine(x, gameState.prevWaveY[x], gameState.prevWaveH[x], BACKGROUND_COLOR);
+    int32_t y1 = (gameState.micData[x] >> WAVE_SHIFT);
+    int32_t y2 = (gameState.micData[x + 1] >> WAVE_SHIFT);
+    if (y1 > y2) {
+      int32_t t = y1;
+      y1 = y2;
+      y2 = t;
+    }
+    int32_t y = WAVE_POS_Y + (WAVE_HEIGHT >> 1) + y1;
+    int32_t h = WAVE_POS_Y + (WAVE_HEIGHT >> 1) + y2 + 1 - y;
+    gameState.prevWaveY[x] = y;
+    gameState.prevWaveH[x] = h;
+    M5.Display.writeFastVLine(x, gameState.prevWaveY[x], gameState.prevWaveH[x], WAVE_COLOR);
+  }
+}
+
 void drawGame() {
   drawGround();
+  drawWaveform();
   drawObstacles();
   drawBalloon();
   drawUI();
-  
+
   M5.Display.display();
 }
 
