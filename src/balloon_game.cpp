@@ -120,7 +120,15 @@ void updateBalloon() {
     gameState.nextLevelHeight += LEVEL_HEIGHT_STEP;
     gameState.showLevelUp = true;
     gameState.levelUpTime = millis();
+    M5.Mic.end();
+    M5.Speaker.begin();
+    M5.Speaker.setVolume(200);
     M5.Speaker.tone(880, 200);
+    while(M5.Speaker.isPlaying()) {
+      delay(5);
+    }
+    M5.Speaker.end();
+    M5.Mic.begin();
   }
 }
 
