@@ -9,6 +9,7 @@ A fun game for M5Stack where you control a balloon by blowing into the microphon
 - Balloon bursts when it hits the ground or obstacles
 - Score and height tracking
 - Touch screen controls
+- Level cap increased to 10 with cheerful level-up notification
 
 ## How to Play
 
