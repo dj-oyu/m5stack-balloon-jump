@@ -19,6 +19,8 @@ struct GameState {
   int prevObstaclesX[5];
   int prevObstaclesY[5];
   bool prevObstaclesActive[5];
+  int16_t prevWaveY[RECORD_LENGTH];
+  int16_t prevWaveH[RECORD_LENGTH];
 };
 
 extern GameState gameState;
@@ -30,6 +32,7 @@ void updateBalloon();
 void updateObstacles();
 bool checkCollision();
 void drawGame();
+void drawWaveform();
 void gameOver();
 
 #endif
