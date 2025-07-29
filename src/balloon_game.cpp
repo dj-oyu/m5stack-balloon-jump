@@ -281,7 +281,7 @@ void drawUI() {
     if (millis() - gameState.levelUpTime < LEVEL_UP_DURATION) {
       M5.Display.setTextSize(LEVEL_UP_FONT_SIZE);
       M5.Display.setTextColor(LEVEL_UP_COLOR);
-      M5.Display.setCursor(SCREEN_WIDTH/2, 10);
+      M5.Display.setCursor(SCREEN_WIDTH/2, 16);
       M5.Display.printf("LEVEL %d!", gameState.level);
       M5.Display.setTextSize(UI_FONT_SIZE);
       M5.Display.setTextColor(TEXT_COLOR);
