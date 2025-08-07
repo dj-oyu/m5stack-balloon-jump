@@ -39,7 +39,7 @@ void setup() {
 void loop() {
   M5.update();
   
-  detectBlow();
+  updateBlow();
   updateBalloon();
   updateObstacles();
   

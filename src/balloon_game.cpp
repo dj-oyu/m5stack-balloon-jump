@@ -2,15 +2,6 @@
 #include <M5Unified.h>
 #include "balloon_game.h"
 
-struct Obstacle {
-  int x;
-  int y;
-  int width;
-  int height;
-  bool active;
-  int vy;
-};
-
 GameState gameState;
 Obstacle obstacles[5];
 
@@ -19,9 +10,8 @@ void initGame() {
   gameState.balloonVelocity = 0;
   gameState.score = 0;
   gameState.height = 0;
-  gameState.isBlowing = false;
+  gameState.blowPower = 0;
   gameState.isBurst = false;
-  gameState.blowStartTime = 0;
   gameState.lastObstacleTime = 0;
   gameState.burstTime = 0;
   gameState.prevBalloonY = gameState.balloonY;
@@ -35,7 +25,7 @@ void initGame() {
   
   for (int i = 0; i < 5; i++) {
     obstacles[i].active = false;
-    obstacles[i].vy = 0;
+    obstacles[i].param1 = 0;
     gameState.prevObstaclesX[i] = 0;
     gameState.prevObstaclesY[i] = 0;
     gameState.prevObstaclesActive[i] = false;
@@ -58,8 +48,11 @@ void initGame() {
   M5.Display.display();
 }
 
-bool detectBlow() {
-  if (gameState.isBurst) return false;
+void updateBlow() {
+  if (gameState.isBurst) {
+    gameState.blowPower = 0;
+    return;
+  }
   
   if (M5.Mic.record(gameState.micData, RECORD_LENGTH, RECORD_SAMPLERATE)) {
     int16_t maxAmplitude = 0;
@@ -70,32 +63,36 @@ bool detectBlow() {
     }
     
     if (maxAmplitude > MIC_THRESHOLD) {
-      if (!gameState.isBlowing) {
-        gameState.isBlowing = true;
-        gameState.blowStartTime = millis();
+      // Map amplitude to blow power. Let's use a simple linear mapping for now.
+      // A more sophisticated mapping could be used for better feel.
+      // e.g. log scale, or a curve.
+      // The max amplitude from the mic is 32767, but it rarely reaches that.
+      // Let's set a practical max for mapping.
+      int practicalMaxAmplitude = 10000;
+      gameState.blowPower = map(maxAmplitude, MIC_THRESHOLD, practicalMaxAmplitude, 1, MAX_BLOW_POWER);
+      if (gameState.blowPower > MAX_BLOW_POWER) {
+        gameState.blowPower = MAX_BLOW_POWER;
       }
-      return true;
     } else {
-      if (gameState.isBlowing) {
-        gameState.isBlowing = false;
-      }
-      return false;
+      gameState.blowPower = 0;
     }
+  } else {
+    gameState.blowPower = 0;
   }
-  return false;
 }
 
 void updateBalloon() {
   if (gameState.isBurst) return;
+
+  // Apply forces based on blow power and gravity
+  float upwardForce = (float)gameState.blowPower * BALLOON_LIFT;
   
-  if (gameState.isBlowing) {
-    gameState.balloonVelocity -= 2;
-  } else {
-    gameState.balloonVelocity += 1;
-  }
+  gameState.balloonVelocity -= upwardForce;
+  gameState.balloonVelocity += BALLOON_GRAVITY;
   
-  if (gameState.balloonVelocity > 5) gameState.balloonVelocity = 5;
-  if (gameState.balloonVelocity < -8) gameState.balloonVelocity = -8;
+  // Terminal velocity
+  if (gameState.balloonVelocity > MAX_VELOCITY_DOWN) gameState.balloonVelocity = MAX_VELOCITY_DOWN; // Downward
+  if (gameState.balloonVelocity < MAX_VELOCITY_UP) gameState.balloonVelocity = MAX_VELOCITY_UP; // Upward
   
   gameState.balloonY += gameState.balloonVelocity;
   
@@ -134,45 +131,116 @@ void updateBalloon() {
 
 void updateObstacles() {
   if (gameState.isBurst) return;
-  
+
+  // === Obstacle Spawning ===
+  // This section determines when and what type of new obstacles to create.
   unsigned long currentTime = millis();
-  unsigned long interval = BASE_OBSTACLE_INTERVAL - (gameState.level - 1) * 150;
+  unsigned long interval = BASE_OBSTACLE_INTERVAL - (gameState.level - 1) * 100;
   if (interval < MIN_OBSTACLE_INTERVAL) interval = MIN_OBSTACLE_INTERVAL;
 
   if (currentTime - gameState.lastObstacleTime > interval) {
-    for (int i = 0; i < 5; i++) {
-      if (!obstacles[i].active) {
-        obstacles[i].active = true;
-        obstacles[i].x = SCREEN_WIDTH;
-        obstacles[i].y = random(GROUND_HEIGHT + 30, SCREEN_HEIGHT - GROUND_HEIGHT - OBSTACLE_HEIGHT - 30);
-        obstacles[i].width = OBSTACLE_WIDTH;
-        obstacles[i].height = OBSTACLE_HEIGHT;
-        if (gameState.level >= 2) {
-          obstacles[i].vy = random(-gameState.level, gameState.level + 1);
-          if (obstacles[i].vy == 0) obstacles[i].vy = 1;
-        } else {
-          obstacles[i].vy = 0;
-        }
-        gameState.lastObstacleTime = currentTime;
+    int obstacleTypeRoll = random(100);
+    int free_slot = -1;
+    for(int i=0; i<5; ++i) {
+      if(!obstacles[i].active) {
+        free_slot = i;
         break;
       }
     }
+
+    if (free_slot != -1) {
+        gameState.lastObstacleTime = currentTime;
+        Obstacle& o = obstacles[free_slot];
+        o.active = true;
+        o.x = SCREEN_WIDTH;
+        o.width = OBSTACLE_WIDTH;
+        o.height = OBSTACLE_HEIGHT;
+        o.param1 = 0;
+
+        // Determine obstacle type based on level
+        if (gameState.level < 3) { // Levels 1-2: Static obstacles only
+            o.type = STATIC;
+            o.y = random(GROUND_HEIGHT + 30, SCREEN_HEIGHT - GROUND_HEIGHT - OBSTACLE_HEIGHT - 30);
+        } else if (gameState.level < 5) { // Levels 3-4: Introduce moving obstacles
+            if (obstacleTypeRoll < 70) {
+                o.type = STATIC;
+                o.y = random(GROUND_HEIGHT + 30, SCREEN_HEIGHT - GROUND_HEIGHT - OBSTACLE_HEIGHT - 30);
+            } else {
+                o.type = MOVING;
+                o.y = random(GROUND_HEIGHT + 30 + MOVING_OBSTACLE_AMPLITUDE, SCREEN_HEIGHT - GROUND_HEIGHT - OBSTACLE_HEIGHT - 30 - MOVING_OBSTACLE_AMPLITUDE);
+            }
+        } else { // Level 5+: Introduce passages
+            if (obstacleTypeRoll < 50) {
+                o.type = STATIC;
+                o.y = random(GROUND_HEIGHT + 30, SCREEN_HEIGHT - GROUND_HEIGHT - OBSTACLE_HEIGHT - 30);
+            } else if (obstacleTypeRoll < 80) {
+                o.type = MOVING;
+                o.y = random(GROUND_HEIGHT + 30 + MOVING_OBSTACLE_AMPLITUDE, SCREEN_HEIGHT - GROUND_HEIGHT - OBSTACLE_HEIGHT - 30 - MOVING_OBSTACLE_AMPLITUDE);
+            } else {
+                // Find another free slot for the pair
+                int free_slot2 = -1;
+                for(int i = free_slot + 1; i < 5; ++i) {
+                    if(!obstacles[i].active) {
+                        free_slot2 = i;
+                        break;
+                    }
+                }
+                if (free_slot2 != -1) {
+                    Obstacle& o2 = obstacles[free_slot2];
+                    int passage_y = random(GROUND_HEIGHT + 50, SCREEN_HEIGHT - GROUND_HEIGHT - 50 - PASSAGE_GAP);
+
+                    o.type = PASSAGE_TOP;
+                    o.y = passage_y - o.height;
+
+                    o2.active = true;
+                    o2.x = SCREEN_WIDTH;
+                    o2.width = OBSTACLE_WIDTH;
+                    o2.height = OBSTACLE_HEIGHT;
+                    o2.param1 = 0;
+                    o2.type = PASSAGE_BOTTOM;
+                    o2.y = passage_y + PASSAGE_GAP;
+                } else {
+                  // Not enough space for a passage, spawn a static one instead
+                  o.type = STATIC;
+                  o.y = random(GROUND_HEIGHT + 30, SCREEN_HEIGHT - GROUND_HEIGHT - OBSTACLE_HEIGHT - 30);
+                }
+            }
+        }
+    }
   }
-  
+
+  // === Obstacle Updating ===
+  // This section updates the position of all active obstacles.
   for (int i = 0; i < 5; i++) {
     if (obstacles[i].active) {
-      obstacles[i].x -= GAME_SPEED + (gameState.level - 1) * 2;
-      obstacles[i].y += obstacles[i].vy;
+      obstacles[i].x -= GAME_SPEED + (gameState.level - 1) * 1.5f;
 
-      if (obstacles[i].y < WAVE_POS_Y + 10 ||
-          obstacles[i].y > SCREEN_HEIGHT - GROUND_HEIGHT - OBSTACLE_HEIGHT - 10) {
-        obstacles[i].vy = -obstacles[i].vy;
+      switch(obstacles[i].type) {
+        case STATIC:
+        case PASSAGE_TOP:
+        case PASSAGE_BOTTOM:
+          // No special movement
+          break;
+        case MOVING:
+          obstacles[i].param1 += 0.05f * (1 + gameState.level * 0.1f); // increase speed with level
+          obstacles[i].y += sin(obstacles[i].param1) * 2.0f;
+          break;
+        case BONUS:
+          // To be implemented
+          break;
       }
 
+      // Deactivate if off-screen
       if (obstacles[i].x < -OBSTACLE_WIDTH) {
         obstacles[i].active = false;
-        obstacles[i].vy = 0;
-        gameState.score += 10;
+        if (obstacles[i].type != PASSAGE_TOP && obstacles[i].type != PASSAGE_BOTTOM) {
+            gameState.score += 10;
+        } else {
+            // Give more points for clearing a passage
+            if (obstacles[i].type == PASSAGE_BOTTOM) {
+                gameState.score += 25;
+            }
+        }
       }
     }
   }
@@ -240,19 +308,31 @@ void drawGround() {
 
 void drawObstacles() {
   for (int i = 0; i < 5; i++) {
+    // Erase previous obstacle
     if (gameState.prevObstaclesActive[i]) {
-      M5.Display.fillRect(gameState.prevObstaclesX[i], gameState.prevObstaclesY[i], 
-                          OBSTACLE_WIDTH, OBSTACLE_HEIGHT, 
+        // A bit of extra padding to erase circular moving obstacles
+      M5.Display.fillRect(gameState.prevObstaclesX[i] - 5, gameState.prevObstaclesY[i] - 5,
+                          OBSTACLE_WIDTH + 10, OBSTACLE_HEIGHT + 10,
                           BACKGROUND_COLOR);
     }
     
     if (obstacles[i].active) {
-      M5.Display.fillRect(obstacles[i].x, obstacles[i].y, obstacles[i].width, obstacles[i].height, OBSTACLE_COLOR);
-      
-      M5.Display.fillCircle(obstacles[i].x + obstacles[i].width/2, obstacles[i].y + obstacles[i].height/2, obstacles[i].width/3, TFT_DARKGREEN);
-      
-      M5.Display.fillCircle(obstacles[i].x + obstacles[i].width/3, obstacles[i].y + obstacles[i].height/3, obstacles[i].width/6, TFT_GREEN);
-      M5.Display.fillCircle(obstacles[i].x + 2*obstacles[i].width/3, obstacles[i].y + 2*obstacles[i].height/3, obstacles[i].width/6, TFT_GREEN);
+      auto& o = obstacles[i];
+      switch(o.type) {
+        case STATIC:
+        case PASSAGE_TOP:
+        case PASSAGE_BOTTOM:
+          M5.Display.fillRect(o.x, o.y, o.width, o.height, OBSTACLE_COLOR);
+          M5.Display.drawRect(o.x, o.y, o.width, o.height, TFT_DARKGREEN);
+          break;
+        case MOVING:
+          M5.Display.fillCircle(o.x + o.width/2, o.y + o.height/2, o.width/2, OBSTACLE_MOVING_COLOR);
+          M5.Display.drawCircle(o.x + o.width/2, o.y + o.height/2, o.width/2, TFT_RED);
+          break;
+        case BONUS:
+          M5.Display.fillCircle(o.x + o.width/2, o.y + o.height/2, o.width/2, BONUS_COLOR);
+          break;
+      }
     }
     
     gameState.prevObstaclesX[i] = obstacles[i].x;
@@ -288,11 +368,6 @@ void drawUI() {
     } else {
       gameState.showLevelUp = false;
     }
-  }
-  
-  if (gameState.isBlowing) {
-    M5.Display.setCursor(SCREEN_WIDTH - 100, 10);
-    M5.Display.printf("Blowing!");
   }
 }
 

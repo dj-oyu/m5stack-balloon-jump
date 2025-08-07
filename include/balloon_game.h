@@ -3,14 +3,31 @@
 
 #include "game_config.h"
 
+enum ObstacleType {
+  STATIC,
+  MOVING,
+  PASSAGE_TOP,
+  PASSAGE_BOTTOM,
+  BONUS
+};
+
+struct Obstacle {
+  int x;
+  int y;
+  int width;
+  int height;
+  bool active;
+  ObstacleType type;
+  float param1; // Used for sine wave movement angle, etc.
+};
+
 struct GameState {
   int balloonY;
   int balloonVelocity;
   int score;
   int height;
-  bool isBlowing;
+  int blowPower;
   bool isBurst;
-  unsigned long blowStartTime;
   unsigned long lastObstacleTime;
   unsigned long burstTime;
   int16_t micData[RECORD_LENGTH];
@@ -28,10 +45,10 @@ struct GameState {
 };
 
 extern GameState gameState;
-extern struct Obstacle obstacles[5];
+extern Obstacle obstacles[5];
 
 void initGame();
-bool detectBlow();
+void updateBlow();
 void updateBalloon();
 void updateObstacles();
 bool checkCollision();
