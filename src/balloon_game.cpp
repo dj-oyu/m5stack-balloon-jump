@@ -43,7 +43,10 @@ void initGame() {
 
   memset(gameState.prevWaveY, 0, sizeof(gameState.prevWaveY));
   memset(gameState.prevWaveH, 0, sizeof(gameState.prevWaveH));
-  
+
+  // Initialize particle system
+  initParticles();
+
   M5.Display.setRotation(0);
   M5.Display.setTextDatum(middle_center);
   M5.Display.setTextColor(TEXT_COLOR);
@@ -60,7 +63,7 @@ void initGame() {
 
 bool detectBlow() {
   if (gameState.isBurst) return false;
-  
+
   if (M5.Mic.record(gameState.micData, RECORD_LENGTH, RECORD_SAMPLERATE)) {
     int16_t maxAmplitude = 0;
     for (int i = 0; i < RECORD_LENGTH; i++) {
@@ -68,11 +71,13 @@ bool detectBlow() {
         maxAmplitude = abs(gameState.micData[i]);
       }
     }
-    
+
     if (maxAmplitude > MIC_THRESHOLD) {
       if (!gameState.isBlowing) {
         gameState.isBlowing = true;
         gameState.blowStartTime = millis();
+        // Emit jump particles when starting to blow
+        emitJumpParticles(SCREEN_WIDTH / 2, gameState.balloonY + BALLOON_RADIUS);
       }
       return true;
     } else {
@@ -108,6 +113,8 @@ void updateBalloon() {
     gameState.balloonY = SCREEN_HEIGHT - GROUND_HEIGHT - BALLOON_RADIUS;
     gameState.isBurst = true;
     gameState.burstTime = millis();
+    // Emit burst particles when balloon hits ground
+    emitBurstParticles(SCREEN_WIDTH / 2, gameState.balloonY);
   }
   
   if (gameState.balloonVelocity < 0) {
@@ -120,6 +127,8 @@ void updateBalloon() {
     gameState.nextLevelHeight += LEVEL_HEIGHT_STEP;
     gameState.showLevelUp = true;
     gameState.levelUpTime = millis();
+    // Emit celebration particles on level up
+    emitLevelUpParticles(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
     M5.Mic.end();
     M5.Speaker.begin();
     M5.Speaker.setVolume(200);
@@ -173,6 +182,8 @@ void updateObstacles() {
         obstacles[i].active = false;
         obstacles[i].vy = 0;
         gameState.score += 10;
+        // Emit sparkle particles when obstacle passes
+        emitSparkleParticles(SCREEN_WIDTH / 2, gameState.balloonY);
       }
     }
   }
@@ -191,6 +202,9 @@ bool checkCollision() {
           gameState.balloonY - BALLOON_RADIUS < obstacles[i].y + obstacles[i].height) {
         gameState.isBurst = true;
         gameState.burstTime = millis();
+        // Emit collision and burst particles
+        emitCollisionParticles(balloonX, gameState.balloonY);
+        emitBurstParticles(balloonX, gameState.balloonY);
         return true;
       }
     }
@@ -324,6 +338,7 @@ void drawGame() {
   drawWaveform();
   drawObstacles();
   drawBalloon();
+  drawParticles();  // Draw particles on top of game elements
   drawUI();
 
   M5.Display.display();

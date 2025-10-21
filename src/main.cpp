@@ -38,24 +38,25 @@ void setup() {
 
 void loop() {
   M5.update();
-  
+
   detectBlow();
   updateBalloon();
   updateObstacles();
-  
+  updateParticles();  // Update particle physics
+
   if (checkCollision()) {
     gameOver();
     return;
   }
-  
+
   if (gameState.isBurst) {
     if (millis() - gameState.burstTime > 150) {
       gameOver();
       return;
     }
   }
-  
+
   drawGame();
-  
+
   delay(25);
 }

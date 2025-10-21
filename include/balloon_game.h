@@ -2,6 +2,7 @@
 #define BALLOON_GAME_H
 
 #include "game_config.h"
+#include "particle_system.h"
 
 struct GameState {
   int balloonY;
